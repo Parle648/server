@@ -1,0 +1,24 @@
+databases:
+  - name: Lover-Flower-DB
+    databaseName: lover_flower
+    user: moral503
+
+ services:
+ - type: pserv
+   name: pgbouncer
+   runtime: docker
+   plan: standard
+   repo: https://github.com/render-oss/docker-pgbouncer
+   envVars:
+   - key: postgres://moral503:hG0rwDrm5KbOVGgM2yZyPagsPb3IQTQX@dpg-cmduaa6d3nmc73dn5bqg-a.oregon-postgres.render.com/lover_flower
+     fromDatabase:
+       name: Lover-Flower-DB
+       property: connectionString
+   - key: POOL_MODE
+     value: transaction
+   - key: SERVER_RESET_QUERY
+     value: DISCARD ALL
+   - key: MAX_CLIENT_CONN
+     value: 500
+   - key: DEFAULT_POOL_SIZE
+     value: 50
