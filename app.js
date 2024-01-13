@@ -25,6 +25,13 @@ pool.connect()
 const app = express();
 app.use(express.json());
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*'); // Важно: На продакшене рекомендуется указать конкретный источник
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
 app.get('/', async (req, res) => {
   res.status(200).json({ result: 'all ok' });
 });
@@ -41,11 +48,13 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/getproduct/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(id.slice(2));
     const query = {
       text: 'SELECT * FROM Products WHERE id = $1',
-      values: [id.slice(1)],
+      values: [id.slice(2)],
     };
     const result = await pool.query(query);
+    console.log(result.rows);
     if (result.rows.length === 0) {
       res.status(404).json({ message: 'Product not found' });
     } else {
@@ -92,17 +101,20 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-app.post('/api/currentProducts', async (req, res) => {
+app.get('/api/currentProducts/:string', async (req, res) => {
   try {
-    const {types, props, sortBy} = req.body;
+    const {string} = req.params;
 
-    const products = await await pool.query('SELECT * FROM Products');
+    const {types, sortBy, props} = JSON.parse(string.slice(1))
+    console.log(types.value, sortBy.value, props.value)
+
+    const products = await pool.query('SELECT * FROM Products');
     let result;
 
-    if (types.length !== 0) {
+    if (types.value.length !== 0) {
         // sort when have types requirement
-        const byTypes = types.map(type => {
-            const arr = products.map(prod => {
+        const byTypes = types.value.map(type => {
+            const arr = products.rows.map(prod => {
                 if (prod.categories.includes(type)) {
                     return prod;
                 }
@@ -117,8 +129,8 @@ app.post('/api/currentProducts', async (req, res) => {
             };
         })
 
-        const byProps = Object.values(props).flat().map(prop => {
-            const arr = products.map(prod => {
+        const byProps = Object.values(props.value).flat().map(prop => {
+            const arr = products.rows.map(prod => {
                 if (prod.light.includes(prop.toUpperCase())) {
                     return prod;
                 }
@@ -133,10 +145,10 @@ app.post('/api/currentProducts', async (req, res) => {
             };
         })
 
-        if (sortBy === "ПО ВОЗРОСТАНИЮ") {
+        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
             result = byProps.concat(byTypes)
             .sort((a, b) => a.cost - b.cost);
-        } else if (sortBy === "ПО УБЫВАНИЮ") {
+        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
             result = byProps.concat(byTypes)
             .sort((a, b) => b.cost - a.cost);
         } else {
@@ -144,10 +156,10 @@ app.post('/api/currentProducts', async (req, res) => {
         }
         
         return res.json(result)
-    } else if (Object.values(props).flat().length !== 0) { 
+    } else if (Object.values(props.value).flat().length !== 0) { 
         // sort when have no types requirement
-        const byProps = props.map(prop => {
-            const arr = products.map(prod => {
+        const byProps = props.value.map(prop => {
+            const arr = products.rows.map(prod => {
                 if (prod.light.includes(prop)) {
                     return prod;
                 }
@@ -162,10 +174,10 @@ app.post('/api/currentProducts', async (req, res) => {
             };
         })
 
-        if (sortBy === "ПО ВОЗРОСТАНИЮ") {
+        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
             result = byProps.concat(byTypes)
             .sort((a, b) => a.cost - b.cost);
-        } else if (sortBy === "ПО УБЫВАНИЮ") {
+        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
             result = byProps.concat(byTypes)
             .sort((a, b) => b.cost - a.cost);
         }
@@ -173,13 +185,13 @@ app.post('/api/currentProducts', async (req, res) => {
         result = byProps.concat(byTypes);
         return res.json(result)
     } else {
-        // sortBy when dont have any requirements
-        if (sortBy === "ПО ВОЗРОСТАНИЮ") {
-            result = products.sort((a, b) => a.cost - b.cost);
-        } else if (sortBy === "ПО УБЫВАНИЮ") {
-            result = products.sort((a, b) => b.cost - a.cost);
+        // sortBy.value when dont have any requirements
+        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
+            result = products.rows.sort((a, b) => a.cost - b.cost);
+        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
+            result = products.rows.sort((a, b) => b.cost - a.cost);
         } else {
-            result = products
+            result = products.rows
         }
         return res.json(result)
     }
@@ -210,11 +222,46 @@ app.post('/api/calls', async (req, res) => {
 
     // Парсим данные
     const requestData = JSON.parse(x);
-    const { name, message, number } = requestData;
-    console.log(`INSERT INTO Calls (name, message, number) VALUES('${name}', '${message}', '${number}')`);
+    const { name, number,  } = requestData;
+    console.log(`INSERT INTO Calls (name, number, ) VALUES('${name}', '${message}', '${number}')`);
 
     // Выполняем запрос к базе данных
-    await pool.query(`INSERT INTO Calls (name, message, number) VALUES('${name}', '${message}', '${number}')`);
+    await pool.query(`INSERT INTO Calls (name, number, ) VALUES('${name}', '${message}', '${number}')`);
+
+    res.status(201).json({ message: 'Product created successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/corporative-clients', async (req, res) => {
+  try {
+    let x = '';
+
+    const requestDataPromise = new Promise((resolve, reject) => {
+      req.on('data', chunk => {
+        x += chunk.toString();
+      });
+      req.on('end', () => {
+        resolve();
+      });
+      req.on('error', (error) => {
+        reject(error);
+      });
+    });
+
+    // Ожидаем завершения чтения данных
+    await requestDataPromise;
+
+    // Парсим данные
+    const requestData = JSON.parse(x);
+    console.log(requestData);
+
+    const {organisationName, mailIndex, contactPerson, contactNumber, busketAmount, emailAdress, YNP, currentAccount, bankCode, countOfOrders} = requestData;
+    console.log(`INSERT INTO CorporativeClients ( organisationName, mailIndex, contactPerson, contactNumber, busketAmount, emailAdress, YNP, currentAccount, bankCode, countOfOrders) VALUES('${organisationName}', '${mailIndex}', '${contactPerson}', '${contactNumber}', '${busketAmount}', '${emailAdress}', '${YNP}', '${currentAccount}', '${bankCode}', '${countOfOrders}')`);
+    // Выполняем запрос к базе '${данных}'
+    await pool.query(`INSERT INTO CorporativeClients ( organisationName, mailIndex, contactPerson, contactNumber, busketAmount, emailAdress, YNP, currentAccount, bankCode, countOfOrders) VALUES('${organisationName}', '${mailIndex}', '${contactPerson}', '${contactNumber}', '${busketAmount}', '${emailAdress}', '${YNP}', '${currentAccount}', '${bankCode}', '${countOfOrders}')`);
 
     res.status(201).json({ message: 'Product created successfully' });
   } catch (error) {
