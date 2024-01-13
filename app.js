@@ -1,7 +1,6 @@
 const express = require('express');
 const { Pool } = require('pg');
 
-const app = express();
 
 const pool = new Pool({
   user: 'moral503',
@@ -14,8 +13,6 @@ const pool = new Pool({
   },
 });
 
-app.use(express.json());
-
 // Подключение к базе данных
 pool.connect()
   .then(() => {
@@ -24,6 +21,9 @@ pool.connect()
   .catch((err) => {
     console.error('Error connecting to the database', err);
   });
+
+const app = express();
+app.use(express.json());
 
 app.get('/', async (req, res) => {
   res.status(200).json({ result: 'all ok' });
@@ -190,14 +190,39 @@ app.post('/api/currentProducts', async (req, res) => {
 
 app.post('/api/calls', async (req, res) => {
   try {
-    const { name, message, number } = req.body;
+    let x = '';
 
+    // Создаем промис для ожидания завершения чтения данных из запроса
+    const requestDataPromise = new Promise((resolve, reject) => {
+      req.on('data', chunk => {
+        x += chunk.toString();
+      });
+      req.on('end', () => {
+        resolve();
+      });
+      req.on('error', (error) => {
+        reject(error);
+      });
+    });
+
+    // Ожидаем завершения чтения данных
+    await requestDataPromise;
+
+    // Парсим данные
+    const requestData = JSON.parse(x);
+    const { name, message, number } = requestData;
+    console.log(`INSERT INTO Calls (name, message, number) VALUES('${name}', '${message}', '${number}')`);
+
+    // Выполняем запрос к базе данных
     await pool.query(`INSERT INTO Calls (name, message, number) VALUES('${name}', '${message}', '${number}')`);
+
     res.status(201).json({ message: 'Product created successfully' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
+
 
 app.post('/api/review', async (req, res) => {
   try {
@@ -242,7 +267,7 @@ app.post('/api/order', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
