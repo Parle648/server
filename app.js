@@ -70,13 +70,13 @@ app.get('/api/products/:string', async (req, res) => {
     const { string } = req.params;
     const str = string.slice(1)
     const query = {
-      text: 'SELECT * FROM Products WHERE title=$1',
+      text: 'SELECT * FROM Products WHERE title = $1',
       values: [str],
     };
-    const result = await pool.query(query);
-    console.log(result);
+    const result = await pool.query(`SELECT * FROM Products WHERE title = '${str}'`);
+    console.log(`SELECT * FROM Products WHERE title = '${str}'`);
     if (result.rows.length === 0) {
-      res.status(404).json({ message: 'Product not found' });
+      res.status(404).json("");
     } else {
       res.json(result.rows);
     }
@@ -145,10 +145,10 @@ app.get('/api/currentProducts/:string', async (req, res) => {
             };
         })
 
-        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
+        if (sortBy.value.length === 14) {
             result = byProps.concat(byTypes)
             .sort((a, b) => a.cost - b.cost);
-        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
+        } else if (sortBy.value.length === 11) {
             result = byProps.concat(byTypes)
             .sort((a, b) => b.cost - a.cost);
         } else {
@@ -174,10 +174,10 @@ app.get('/api/currentProducts/:string', async (req, res) => {
             };
         })
 
-        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
+        if (sortBy.value.length === 14) {
             result = byProps.concat(byTypes)
             .sort((a, b) => a.cost - b.cost);
-        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
+        } else if (sortBy.value.length === 11) {
             result = byProps.concat(byTypes)
             .sort((a, b) => b.cost - a.cost);
         }
@@ -185,10 +185,11 @@ app.get('/api/currentProducts/:string', async (req, res) => {
         result = byProps.concat(byTypes);
         return res.json(result)
     } else {
+      console.log(sortBy.value.length === 14);
         // sortBy.value when dont have any requirements
-        if (sortBy.value === "ПО ВОЗРОСТАНИЮ") {
+        if (sortBy.value.length === 14) {
             result = products.rows.sort((a, b) => a.cost - b.cost);
-        } else if (sortBy.value === "ПО УБЫВАНИЮ") {
+        } else if (sortBy.value.length === 11) {
             result = products.rows.sort((a, b) => b.cost - a.cost);
         } else {
             result = products.rows
